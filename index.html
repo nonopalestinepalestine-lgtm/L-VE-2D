@@ -1,0 +1,2209 @@
+------------------------------------------------------------
+-- PARKING CHALLENGE
+-- VERSION 4
+-- LEVEL 1 + LEVEL 2
+------------------------------------------------------------
+
+local car = {
+    x = 350,
+    y = 520,
+    angle = 0,
+    speed = 0,
+
+    maxForwardSpeed = 260,
+    maxReverseSpeed = 130,
+
+    acceleration = 110,
+    reverseAcceleration = 90,
+    brake = 240,
+
+    turnSpeed = 2.4,
+
+    width = 58,
+    height = 105
+}
+
+local camera = {
+    x = 0,
+    y = 0
+}
+
+local parking = {
+    x = 850,
+    y = 330,
+    width = 120,
+    height = 190
+}
+
+local walls = {
+    {x=150,y=120,w=900,h=35},
+    {x=150,y=650,w=900,h=35},
+    {x=150,y=120,w=35,h=565},
+    {x=1015,y=120,w=35,h=565}
+}
+
+------------------------------------------------------------
+-- OBJECTS OF LEVEL
+------------------------------------------------------------
+
+local parkedCars = {}
+local obstacles = {}
+
+------------------------------------------------------------
+-- GAME
+------------------------------------------------------------
+
+local game = {
+    level = 1,
+    maxLevels = 50,
+
+    fuel = 100,
+
+    saveTimer = 0,
+
+    message = "PARK THE CAR!",
+    messageTimer = 4,
+
+    crashed = false,
+    finished = false,
+    confirmRestart = false
+}
+
+local input = {
+    gas = false,
+    brake = false,
+    left = false,
+    right = false
+}
+
+local gear = "D"
+
+local buttons = {}
+
+------------------------------------------------------------
+-- COLORS
+------------------------------------------------------------
+
+local C = {
+    white = {1,1,1},
+    black = {0.02,0.02,0.02},
+
+    road = {0.20,0.21,0.22},
+    grass = {0.10,0.30,0.12},
+
+    yellow = {1,0.8,0.05},
+    red = {1,0.1,0.08},
+    green = {0.1,1,0.25},
+    blue = {0.12,0.5,1},
+
+    orange = {1,0.45,0.05},
+    gray = {0.35,0.38,0.42}
+}
+
+local function setColor(c,a)
+
+    love.graphics.setColor(
+        c[1],
+        c[2],
+        c[3],
+        a or 1
+    )
+
+end
+
+------------------------------------------------------------
+-- SAVE
+------------------------------------------------------------
+
+local function saveGame()
+
+    love.filesystem.write(
+        "parking_save.txt",
+        tostring(game.level)
+    )
+
+end
+
+------------------------------------------------------------
+-- LOAD
+------------------------------------------------------------
+
+local function loadGame()
+
+    if love.filesystem.getInfo(
+        "parking_save.txt"
+    ) then
+
+        local data =
+            love.filesystem.read(
+                "parking_save.txt"
+            )
+
+        local level =
+            tonumber(data)
+
+        if level then
+
+            game.level =
+                math.max(
+                    1,
+                    math.min(
+                        50,
+                        level
+                    )
+                )
+
+        end
+
+    end
+
+end
+
+------------------------------------------------------------
+-- MESSAGE
+------------------------------------------------------------
+
+local function message(text)
+
+    game.message = text
+    game.messageTimer = 4
+
+end
+
+------------------------------------------------------------
+-- RESET OBJECTS
+------------------------------------------------------------
+
+local function clearLevelObjects()
+
+    parkedCars = {}
+    obstacles = {}
+
+end
+
+------------------------------------------------------------
+-- LEVEL SETUP
+------------------------------------------------------------
+
+local function setupLevel()
+
+    clearLevelObjects()
+
+    --------------------------------------------------------
+    -- LEVEL 1
+    --------------------------------------------------------
+
+    if game.level == 1 then
+
+        parking.x = 850
+        parking.y = 330
+
+        parking.width = 120
+        parking.height = 190
+
+    --------------------------------------------------------
+    -- LEVEL 2
+    --------------------------------------------------------
+
+    elseif game.level == 2 then
+
+        parking.x = 850
+        parking.y = 330
+
+        parking.width = 115
+        parking.height = 175
+
+        ----------------------------------------------------
+        -- CARS NEXT TO PARKING SPOT
+        ----------------------------------------------------
+
+        table.insert(
+            parkedCars,
+            {
+                x = 780,
+                y = 320,
+                angle = 0,
+                width = 55,
+                height = 100,
+                type = 1
+            }
+        )
+
+        table.insert(
+            parkedCars,
+            {
+                x = 920,
+                y = 320,
+                angle = 0,
+                width = 55,
+                height = 100,
+                type = 2
+            }
+        )
+
+        table.insert(
+            parkedCars,
+            {
+                x = 780,
+                y = 535,
+                angle = 0,
+                width = 55,
+                height = 100,
+                type = 2
+            }
+        )
+
+        ----------------------------------------------------
+        -- ROAD OBSTACLES
+        ----------------------------------------------------
+
+        table.insert(
+            obstacles,
+            {
+                x = 500,
+                y = 300,
+                w = 70,
+                h = 70,
+                type = "barrier"
+            }
+        )
+
+        table.insert(
+            obstacles,
+            {
+                x = 650,
+                y = 480,
+                w = 70,
+                h = 70,
+                type = "barrier"
+            }
+        )
+
+        table.insert(
+            obstacles,
+            {
+                x = 720,
+                y = 220,
+                w = 65,
+                h = 65,
+                type = "cone"
+            }
+        )
+
+    --------------------------------------------------------
+    -- LEVELS 3+
+    --------------------------------------------------------
+
+    else
+
+        local shrink =
+            math.min(
+                55,
+                (game.level-1)*1.2
+            )
+
+        parking.width =
+            120-shrink
+
+        parking.height =
+            190-shrink
+
+        parking.x =
+            800+
+            (game.level%4)*35
+
+        parking.y =
+            250+
+            (game.level%5)*55
+
+    end
+
+end
+
+------------------------------------------------------------
+-- RESET CAR
+------------------------------------------------------------
+
+local function resetCar()
+
+    car.x = 350
+    car.y = 520
+
+    car.angle = 0
+    car.speed = 0
+
+    game.fuel = 100
+
+    game.crashed = false
+    game.finished = false
+    game.confirmRestart = false
+
+end
+
+------------------------------------------------------------
+-- DISTANCE
+------------------------------------------------------------
+
+local function distance(
+    x1,y1,
+    x2,y2
+)
+
+    local dx = x2-x1
+    local dy = y2-y1
+
+    return math.sqrt(
+        dx*dx+dy*dy
+    )
+
+end
+
+------------------------------------------------------------
+-- RECT COLLISION
+------------------------------------------------------------
+
+local function rectCollision(
+    x1,y1,w1,h1,
+    x2,y2,w2,h2
+)
+
+    return
+        x1 < x2+w2 and
+        x1+w1 > x2 and
+        y1 < y2+h2 and
+        y1+h1 > y2
+
+end
+
+------------------------------------------------------------
+-- CAR BOX
+------------------------------------------------------------
+
+local function carBox()
+
+    return
+        car.x-car.width/2,
+        car.y-car.height/2,
+        car.width,
+        car.height
+
+end
+
+------------------------------------------------------------
+-- COLLISION
+------------------------------------------------------------
+
+local function checkCollision()
+
+    local x,y,w,h =
+        carBox()
+
+    --------------------------------------------------------
+    -- WALLS
+    --------------------------------------------------------
+
+    for _,wall in ipairs(walls) do
+
+        if rectCollision(
+            x,y,w,h,
+            wall.x,
+            wall.y,
+            wall.w,
+            wall.h
+        ) then
+
+            return true
+
+        end
+
+    end
+
+    --------------------------------------------------------
+    -- PARKED CARS
+    --------------------------------------------------------
+
+    for _,other in ipairs(parkedCars) do
+
+        if rectCollision(
+            x,y,w,h,
+            other.x-other.width/2,
+            other.y-other.height/2,
+            other.width,
+            other.height
+        ) then
+
+            return true
+
+        end
+
+    end
+
+    --------------------------------------------------------
+    -- OBSTACLES
+    --------------------------------------------------------
+
+    for _,ob in ipairs(obstacles) do
+
+        if rectCollision(
+            x,y,w,h,
+            ob.x,
+            ob.y,
+            ob.w,
+            ob.h
+        ) then
+
+            return true
+
+        end
+
+    end
+
+    return false
+
+end
+
+------------------------------------------------------------
+-- PARK CHECK
+------------------------------------------------------------
+
+local function checkParking()
+
+    local px =
+        parking.x+
+        parking.width/2
+
+    local py =
+        parking.y+
+        parking.height/2
+
+    local d =
+        distance(
+            car.x,
+            car.y,
+            px,
+            py
+        )
+
+    return
+        d < 45 and
+        math.abs(car.speed) < 20
+
+end
+
+------------------------------------------------------------
+-- CRASH
+------------------------------------------------------------
+
+local function crash()
+
+    if game.crashed then
+        return
+    end
+
+    game.crashed = true
+    car.speed = 0
+
+    message(
+        "CRASH! PRESS RESTART"
+    )
+
+end
+
+------------------------------------------------------------
+-- COMPLETE LEVEL
+------------------------------------------------------------
+
+local function completeLevel()
+
+    if game.finished then
+        return
+    end
+
+    game.finished = true
+
+    car.speed = 0
+
+    if game.level < game.maxLevels then
+
+        saveGame()
+
+        message(
+            "LEVEL "..game.level..
+            " COMPLETE!"
+        )
+
+    else
+
+        saveGame()
+
+        message(
+            "YOU FINISHED ALL 50 LEVELS!"
+        )
+
+    end
+
+end
+
+------------------------------------------------------------
+-- NEXT LEVEL
+------------------------------------------------------------
+
+local function nextLevel()
+
+    if not game.finished then
+        return
+    end
+
+    if game.level >= game.maxLevels then
+        return
+    end
+
+    game.level =
+        game.level+1
+
+    saveGame()
+
+    resetCar()
+    setupLevel()
+
+    message(
+        "LEVEL "
+        ..game.level
+        .." START!"
+    )
+
+end
+
+------------------------------------------------------------
+-- KEYBOARD
+------------------------------------------------------------
+
+function love.keypressed(key)
+
+    if game.confirmRestart then
+
+        if key=="y" or key=="return" then
+
+            game.level = 1
+            saveGame()
+
+            resetCar()
+            setupLevel()
+
+            message("GAME RESTARTED FROM LEVEL 1!")
+
+        elseif key=="n" or key=="escape" then
+
+            game.confirmRestart = false
+
+        end
+
+        return
+
+    end
+
+    if key=="w" or key=="up" then
+        input.gas=true
+    end
+
+    if key=="s" or key=="down" then
+        input.brake=true
+    end
+
+    if key=="a" or key=="left" then
+        input.left=true
+    end
+
+    if key=="d" or key=="right" then
+        input.right=true
+    end
+
+    --------------------------------------------------------
+    -- RESTART
+    --------------------------------------------------------
+
+    if key=="r" then
+
+        game.confirmRestart = true
+
+    end
+
+    --------------------------------------------------------
+    -- NEXT LEVEL WITH ENTER
+    --------------------------------------------------------
+
+    if key=="return" then
+
+        nextLevel()
+
+    end
+
+end
+
+function love.keyreleased(key)
+
+    if key=="w" or key=="up" then
+        input.gas=false
+    end
+
+    if key=="s" or key=="down" then
+        input.brake=false
+    end
+
+    if key=="a" or key=="left" then
+        input.left=false
+    end
+
+    if key=="d" or key=="right" then
+        input.right=false
+    end
+
+end
+
+------------------------------------------------------------
+-- BUTTON POSITIONS
+------------------------------------------------------------
+
+local function setupButtons()
+
+    local w =
+        love.graphics.getWidth()
+
+    local h =
+        love.graphics.getHeight()
+
+    buttons = {
+
+        ----------------------------------------------------
+        -- TOP RESTART BUTTON (IN-GAME)
+        ----------------------------------------------------
+
+        topRestart={
+            x=w-125,
+            y=15,
+            w=110,
+            h=45
+        },
+
+        ----------------------------------------------------
+        -- CONFIRMATION DIALOG BUTTONS
+        ----------------------------------------------------
+
+        confirmYes={
+            x=w/2-110,
+            y=h/2+20,
+            w=100,
+            h=50
+        },
+
+        confirmNo={
+            x=w/2+10,
+            y=h/2+20,
+            w=100,
+            h=50
+        },
+
+        ----------------------------------------------------
+        -- RIGHT
+        ----------------------------------------------------
+
+        right={
+            x=25,
+            y=h-110,
+            w=95,
+            h=75
+        },
+
+        ----------------------------------------------------
+        -- LEFT
+        ----------------------------------------------------
+
+        left={
+            x=135,
+            y=h-110,
+            w=95,
+            h=75
+        },
+
+        ----------------------------------------------------
+        -- GEAR
+        ----------------------------------------------------
+
+        gear={
+            x=w-155,
+            y=h-300,
+            w=125,
+            h=65
+        },
+
+        ----------------------------------------------------
+        -- BRAKE
+        ----------------------------------------------------
+
+        brake={
+            x=w-155,
+            y=h-205,
+            w=125,
+            h=75
+        },
+
+        ----------------------------------------------------
+        -- GAS
+        ----------------------------------------------------
+
+        gas={
+            x=w-155,
+            y=h-110,
+            w=125,
+            h=75
+        },
+
+        ----------------------------------------------------
+        -- RESTART
+        ----------------------------------------------------
+
+        restart={
+            x=w/2-75,
+            y=h/2+40,
+            w=150,
+            h=60
+        },
+
+        ----------------------------------------------------
+        -- NEXT LEVEL
+        ----------------------------------------------------
+
+        next={
+            x=w/2-145,
+            y=h/2+25,
+            w=290,
+            h=75
+        }
+
+    }
+
+end
+
+------------------------------------------------------------
+-- TOUCH PRESSED
+------------------------------------------------------------
+
+function love.touchpressed(id,x,y)
+
+    setupButtons()
+
+    --------------------------------------------------------
+    -- CONFIRM RESTART SCREEN
+    --------------------------------------------------------
+
+    if game.confirmRestart then
+
+        local bYes = buttons.confirmYes
+        local bNo = buttons.confirmNo
+
+        if x>bYes.x and x<bYes.x+bYes.w and y>bYes.y and y<bYes.y+bYes.h then
+
+            game.level = 1
+            saveGame()
+
+            resetCar()
+            setupLevel()
+
+            message("GAME RESTARTED FROM LEVEL 1!")
+
+        elseif x>bNo.x and x<bNo.x+bNo.w and y>bNo.y and y<bNo.y+bNo.h then
+
+            game.confirmRestart = false
+
+        end
+
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- FINISHED SCREEN
+    --------------------------------------------------------
+
+    if game.finished then
+
+        local b =
+            buttons.next
+
+        if
+            x>b.x and
+            x<b.x+b.w and
+            y>b.y and
+            y<b.y+b.h
+        then
+
+            nextLevel()
+
+        end
+
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- CRASH SCREEN
+    --------------------------------------------------------
+
+    if game.crashed then
+
+        local b =
+            buttons.restart
+
+        if
+            x>b.x and
+            x<b.x+b.w and
+            y>b.y and
+            y<b.y+b.h
+        then
+
+            resetCar()
+            setupLevel()
+
+        end
+
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- TOP RESTART BUTTON
+    --------------------------------------------------------
+
+    local bRestart = buttons.topRestart
+
+    if
+        x>bRestart.x and
+        x<bRestart.x+bRestart.w and
+        y>bRestart.y and
+        y<bRestart.y+bRestart.h
+    then
+
+        game.confirmRestart = true
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- RIGHT
+    --------------------------------------------------------
+
+    local b =
+        buttons.right
+
+    if
+        x>b.x and
+        x<b.x+b.w and
+        y>b.y and
+        y<b.y+b.h
+    then
+
+        input.right=true
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- LEFT
+    --------------------------------------------------------
+
+    b =
+        buttons.left
+
+    if
+        x>b.x and
+        x<b.x+b.w and
+        y>b.y and
+        y<b.y+b.h
+    then
+
+        input.left=true
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- GAS
+    --------------------------------------------------------
+
+    b =
+        buttons.gas
+
+    if
+        x>b.x and
+        x<b.x+b.w and
+        y>b.y and
+        y<b.y+b.h
+    then
+
+        input.gas=true
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- BRAKE
+    --------------------------------------------------------
+
+    b =
+        buttons.brake
+
+    if
+        x>b.x and
+        x<b.x+b.w and
+        y>b.y and
+        y<b.y+b.h
+    then
+
+        input.brake=true
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- GEAR
+    --------------------------------------------------------
+
+    b =
+        buttons.gear
+
+    if
+        x>b.x and
+        x<b.x+b.w and
+        y>b.y and
+        y<b.y+b.h
+    then
+
+        if gear=="D" then
+
+            gear="R"
+
+            message("REVERSE")
+
+        else
+
+            gear="D"
+
+            message("DRIVE")
+
+        end
+
+        return
+
+    end
+
+end
+
+------------------------------------------------------------
+-- TOUCH RELEASED
+------------------------------------------------------------
+
+function love.touchreleased()
+
+    input.left=false
+    input.right=false
+
+    input.gas=false
+    input.brake=false
+
+end
+
+------------------------------------------------------------
+-- UPDATE CAR
+------------------------------------------------------------
+
+local function updateCar(dt)
+
+    if game.crashed or
+       game.finished or
+       game.confirmRestart then
+        return
+    end
+
+    --------------------------------------------------------
+    -- DRIVE
+    --------------------------------------------------------
+
+    if gear=="D" then
+
+        if input.gas and
+           game.fuel>0 then
+
+            car.speed =
+                car.speed+
+                car.acceleration*
+                dt
+
+            game.fuel =
+                math.max(
+                    0,
+                    game.fuel-
+                    0.45*dt
+                )
+
+        end
+
+        if not input.gas then
+
+            if car.speed>0 then
+
+                car.speed =
+                    car.speed-
+                    28*dt
+
+                if car.speed<0 then
+                    car.speed=0
+                end
+
+            end
+
+        end
+
+        if input.brake then
+
+            car.speed =
+                car.speed-
+                car.brake*
+                dt
+
+            if car.speed<0 then
+                car.speed=0
+            end
+
+        end
+
+        car.speed =
+            math.min(
+                car.speed,
+                car.maxForwardSpeed
+            )
+
+    --------------------------------------------------------
+    -- REVERSE
+    --------------------------------------------------------
+
+    elseif gear=="R" then
+
+        if input.gas and
+           game.fuel>0 then
+
+            car.speed =
+                car.speed+
+                car.reverseAcceleration*
+                dt
+
+            game.fuel =
+                math.max(
+                    0,
+                    game.fuel-
+                    0.35*dt
+                )
+
+        else
+
+            if car.speed>0 then
+
+                car.speed =
+                    car.speed-
+                    25*dt
+
+                if car.speed<0 then
+                    car.speed=0
+                end
+
+            end
+
+        end
+
+        if input.brake then
+
+            car.speed =
+                car.speed-
+                car.brake*
+                dt
+
+            if car.speed<0 then
+                car.speed=0
+            end
+
+        end
+
+        car.speed =
+            math.min(
+                car.speed,
+                car.maxReverseSpeed
+            )
+
+    end
+
+    --------------------------------------------------------
+    -- STEERING
+    --------------------------------------------------------
+
+    if car.speed>3 then
+
+        local steeringDirection=1
+
+        if gear=="R" then
+            steeringDirection=-1
+        end
+
+        if input.left then
+
+            car.angle =
+                car.angle-
+                car.turnSpeed*
+                dt*
+                steeringDirection
+
+        end
+
+        if input.right then
+
+            car.angle =
+                car.angle+
+                car.turnSpeed*
+                dt*
+                steeringDirection
+
+        end
+
+    end
+
+    --------------------------------------------------------
+    -- MOVE
+    --------------------------------------------------------
+
+    local oldX =
+        car.x
+
+    local oldY =
+        car.y
+
+    local direction=1
+
+    if gear=="R" then
+        direction=-1
+    end
+
+    car.x =
+        car.x+
+        math.sin(car.angle)*
+        car.speed*
+        dt*
+        direction
+
+    car.y =
+        car.y-
+        math.cos(car.angle)*
+        car.speed*
+        dt*
+        direction
+
+    --------------------------------------------------------
+    -- COLLISION
+    --------------------------------------------------------
+
+    if checkCollision() then
+
+        car.x=oldX
+        car.y=oldY
+
+        crash()
+
+        return
+
+    end
+
+    --------------------------------------------------------
+    -- PARK
+    --------------------------------------------------------
+
+    if checkParking() then
+
+        completeLevel()
+
+    end
+
+end
+
+------------------------------------------------------------
+-- CAMERA
+------------------------------------------------------------
+
+local function updateCamera()
+
+    local sw =
+        love.graphics.getWidth()
+
+    local sh =
+        love.graphics.getHeight()
+
+    camera.x =
+        car.x-
+        sw/2
+
+    camera.y =
+        car.y-
+        sh/2
+
+    camera.x =
+        math.max(
+            0,
+            math.min(
+                1200-sw,
+                camera.x
+            )
+        )
+
+    camera.y =
+        math.max(
+            0,
+            math.min(
+                900-sh,
+                camera.y
+            )
+        )
+
+end
+
+------------------------------------------------------------
+-- UPDATE
+------------------------------------------------------------
+
+function love.update(dt)
+
+    updateCar(dt)
+
+    updateCamera()
+
+    setupButtons()
+
+    --------------------------------------------------------
+    -- AUTO SAVE
+    --------------------------------------------------------
+
+    game.saveTimer =
+        game.saveTimer+
+        dt
+
+    if game.saveTimer>=5 then
+
+        saveGame()
+
+        game.saveTimer=0
+
+    end
+
+    if game.messageTimer>0 then
+
+        game.messageTimer =
+            game.messageTimer-
+            dt
+
+    end
+
+end
+
+------------------------------------------------------------
+-- GROUND
+------------------------------------------------------------
+
+local function drawGround()
+
+    setColor(C.grass)
+
+    love.graphics.rectangle(
+        "fill",
+        0,0,
+        1200,
+        900
+    )
+
+    setColor(C.road)
+
+    love.graphics.rectangle(
+        "fill",
+        150,
+        120,
+        900,
+        565
+    )
+
+end
+
+------------------------------------------------------------
+-- PARKING
+------------------------------------------------------------
+
+local function drawParking()
+
+    love.graphics.setColor(
+        0.07,
+        0.07,
+        0.07
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        parking.x,
+        parking.y,
+        parking.width,
+        parking.height
+    )
+
+    setColor(C.white)
+
+    love.graphics.setLineWidth(6)
+
+    love.graphics.rectangle(
+        "line",
+        parking.x,
+        parking.y,
+        parking.width,
+        parking.height
+    )
+
+    love.graphics.setLineWidth(1)
+
+    setColor(C.yellow)
+
+    love.graphics.printf(
+        "PARK",
+        parking.x,
+        parking.y+
+        parking.height/2-
+        12,
+        parking.width,
+        "center"
+    )
+
+end
+
+------------------------------------------------------------
+-- WALLS
+------------------------------------------------------------
+
+local function drawWalls()
+
+    setColor(C.black)
+
+    for _,wall in ipairs(walls) do
+
+        love.graphics.rectangle(
+            "fill",
+            wall.x,
+            wall.y,
+            wall.w,
+            wall.h
+        )
+
+    end
+
+end
+
+------------------------------------------------------------
+-- PARKED CARS
+------------------------------------------------------------
+
+local function drawParkedCars()
+
+    for _,other in ipairs(parkedCars) do
+
+        love.graphics.push()
+
+        love.graphics.translate(
+            other.x,
+            other.y
+        )
+
+        love.graphics.rotate(
+            other.angle
+        )
+
+        ----------------------------------------------------
+        -- SHADOW
+        ----------------------------------------------------
+
+        love.graphics.setColor(
+            0,0,0,0.35
+        )
+
+        love.graphics.rectangle(
+            "fill",
+            -other.width/2+4,
+            -other.height/2+6,
+            other.width,
+            other.height,
+            8,8
+        )
+
+        ----------------------------------------------------
+        -- BODY
+        ----------------------------------------------------
+
+        if other.type==1 then
+
+            love.graphics.setColor(
+                0.8,
+                0.12,
+                0.12
+            )
+
+        else
+
+            love.graphics.setColor(
+                0.95,
+                0.75,
+                0.08
+            )
+
+        end
+
+        love.graphics.rectangle(
+            "fill",
+            -other.width/2,
+            -other.height/2,
+            other.width,
+            other.height,
+            8,8
+        )
+
+        ----------------------------------------------------
+        -- WINDOWS
+        ----------------------------------------------------
+
+        setColor(C.black)
+
+        love.graphics.rectangle(
+            "fill",
+            -other.width/2+8,
+            -other.height/2+14,
+            other.width-16,
+            30,
+            5,5
+        )
+
+        love.graphics.rectangle(
+            "fill",
+            -other.width/2+8,
+            other.height/2-44,
+            other.width-16,
+            30,
+            5,5
+        )
+
+        love.graphics.pop()
+
+    end
+
+end
+
+------------------------------------------------------------
+-- OBSTACLES
+------------------------------------------------------------
+
+local function drawObstacles()
+
+    for _,ob in ipairs(obstacles) do
+
+        if ob.type=="barrier" then
+
+            ------------------------------------------------
+            -- BARRIER
+            ------------------------------------------------
+
+            love.graphics.setColor(
+                0.9,
+                0.1,
+                0.05
+            )
+
+            love.graphics.rectangle(
+                "fill",
+                ob.x,
+                ob.y,
+                ob.w,
+                ob.h,
+                6,6
+            )
+
+            love.graphics.setColor(
+                1,
+                0.85,
+                0.1
+            )
+
+            love.graphics.setLineWidth(7)
+
+            for i=0,ob.w,20 do
+
+                love.graphics.line(
+                    ob.x+i,
+                    ob.y,
+                    ob.x+i-20,
+                    ob.y+ob.h
+                )
+
+            end
+
+            love.graphics.setLineWidth(1)
+
+        elseif ob.type=="cone" then
+
+            ------------------------------------------------
+            -- CONE
+            ------------------------------------------------
+
+            love.graphics.setColor(
+                1,
+                0.35,
+                0.03
+            )
+
+            love.graphics.polygon(
+                "fill",
+
+                ob.x+ob.w/2,
+                ob.y,
+
+                ob.x+ob.w,
+                ob.y+ob.h,
+
+                ob.x,
+                ob.y+ob.h
+            )
+
+            setColor(C.white)
+
+            love.graphics.rectangle(
+                "fill",
+                ob.x+10,
+                ob.y+ob.h-25,
+                ob.w-20,
+                8
+            )
+
+        end
+
+    end
+
+end
+
+------------------------------------------------------------
+-- PLAYER CAR
+------------------------------------------------------------
+
+local function drawCar()
+
+    love.graphics.push()
+
+    love.graphics.translate(
+        car.x,
+        car.y
+    )
+
+    love.graphics.rotate(
+        car.angle
+    )
+
+    --------------------------------------------------------
+    -- SHADOW
+    --------------------------------------------------------
+
+    love.graphics.setColor(
+        0,0,0,0.35
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2+5,
+        -car.height/2+7,
+        car.width,
+        car.height,
+        10,10
+    )
+
+    --------------------------------------------------------
+    -- BODY
+    --------------------------------------------------------
+
+    setColor(C.blue)
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2,
+        -car.height/2,
+        car.width,
+        car.height,
+        10,10
+    )
+
+    --------------------------------------------------------
+    -- WINDOWS
+    --------------------------------------------------------
+
+    setColor(C.black)
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2+8,
+        -car.height/2+14,
+        car.width-16,
+        35,
+        6,6
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2+8,
+        car.height/2-49,
+        car.width-16,
+        35,
+        6,6
+    )
+
+    --------------------------------------------------------
+    -- HEADLIGHTS
+    --------------------------------------------------------
+
+    setColor(C.white)
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2+7,
+        -car.height/2+3,
+        13,
+        7,
+        3,3
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        car.width/2-20,
+        -car.height/2+3,
+        13,
+        7,
+        3,3
+    )
+
+    --------------------------------------------------------
+    -- WHEELS
+    --------------------------------------------------------
+
+    setColor(C.black)
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2-5,
+        -car.height/2+20,
+        8,
+        28
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        car.width/2-3,
+        -car.height/2+20,
+        8,
+        28
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        -car.width/2-5,
+        car.height/2-48,
+        8,
+        28
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        car.width/2-3,
+        car.height/2-48,
+        8,
+        28
+    )
+
+    love.graphics.pop()
+
+end
+
+------------------------------------------------------------
+-- UI PANEL
+------------------------------------------------------------
+
+local function panel(
+    x,y,w,h
+)
+
+    love.graphics.setColor(
+        0,
+        0,
+        0,
+        0.72
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        x,y,w,h,
+        12,12
+    )
+
+end
+
+------------------------------------------------------------
+-- TOP UI
+------------------------------------------------------------
+
+local function drawUI()
+
+    panel(
+        15,
+        15,
+        270,
+        145
+    )
+
+    setColor(C.white)
+
+    love.graphics.print(
+        "PARKING CHALLENGE",
+        30,
+        28
+    )
+
+    love.graphics.print(
+        "LEVEL: "
+        ..game.level..
+        " / 50",
+        30,
+        55
+    )
+
+    love.graphics.print(
+        string.format(
+            "FUEL: %.1f%%",
+            game.fuel
+        ),
+        30,
+        82
+    )
+
+    love.graphics.print(
+        "GEAR: "..gear,
+        30,
+        109
+    )
+
+    love.graphics.print(
+        string.format(
+            "SPEED: %.0f",
+            car.speed
+        ),
+        140,
+        109
+    )
+
+end
+
+------------------------------------------------------------
+-- BUTTON
+------------------------------------------------------------
+
+local function drawButton(
+    b,
+    text
+)
+
+    love.graphics.setColor(
+        0,
+        0,
+        0,
+        0.45
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        b.x+4,
+        b.y+5,
+        b.w,
+        b.h,
+        14,14
+    )
+
+    love.graphics.setColor(
+        0.06,
+        0.08,
+        0.10,
+        0.94
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        b.x,
+        b.y,
+        b.w,
+        b.h,
+        14,14
+    )
+
+    setColor(C.white)
+
+    love.graphics.setLineWidth(2)
+
+    love.graphics.rectangle(
+        "line",
+        b.x,
+        b.y,
+        b.w,
+        b.h,
+        14,14
+    )
+
+    love.graphics.setLineWidth(1)
+
+    love.graphics.printf(
+        text,
+        b.x,
+        b.y+b.h/2-8,
+        b.w,
+        "center"
+    )
+
+end
+
+------------------------------------------------------------
+-- CONTROLS
+------------------------------------------------------------
+
+local function drawControls()
+
+    setupButtons()
+
+    drawButton(
+        buttons.topRestart,
+        "RESTART"
+    )
+
+    drawButton(
+        buttons.right,
+        "RIGHT"
+    )
+
+    drawButton(
+        buttons.left,
+        "LEFT"
+    )
+
+    drawButton(
+        buttons.gear,
+        "GEAR "..gear
+    )
+
+    drawButton(
+        buttons.brake,
+        "BRAKE"
+    )
+
+    drawButton(
+        buttons.gas,
+        "GAS"
+    )
+
+end
+
+------------------------------------------------------------
+-- MESSAGE
+------------------------------------------------------------
+
+local function drawMessage()
+
+    if game.messageTimer<=0 then
+        return
+    end
+
+    local w =
+        love.graphics.getWidth()
+
+    panel(
+        w/2-250,
+        20,
+        500,
+        55
+    )
+
+    setColor(C.white)
+
+    love.graphics.printf(
+        game.message,
+        w/2-230,
+        38,
+        460,
+        "center"
+    )
+
+end
+
+------------------------------------------------------------
+-- CRASH SCREEN
+------------------------------------------------------------
+
+local function drawCrash()
+
+    if not game.crashed then
+        return
+    end
+
+    local w =
+        love.graphics.getWidth()
+
+    local h =
+        love.graphics.getHeight()
+
+    love.graphics.setColor(
+        0,
+        0,
+        0,
+        0.70
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        0,0,w,h
+    )
+
+    setColor(C.red)
+
+    love.graphics.printf(
+        "CRASH!",
+        0,
+        h/2-80,
+        w,
+        "center",
+        0,
+        2,
+        2
+    )
+
+    setupButtons()
+
+    drawButton(
+        buttons.restart,
+        "RESTART"
+    )
+
+end
+
+------------------------------------------------------------
+-- LEVEL COMPLETE SCREEN
+------------------------------------------------------------
+
+local function drawComplete()
+
+    if not game.finished then
+        return
+    end
+
+    local w =
+        love.graphics.getWidth()
+
+    local h =
+        love.graphics.getHeight()
+
+    --------------------------------------------------------
+    -- DARK SCREEN
+    --------------------------------------------------------
+
+    love.graphics.setColor(
+        0,
+        0,
+        0,
+        0.72
+    )
+
+    love.graphics.rectangle(
+        "fill",
+        0,0,w,h
+    )
+
+    --------------------------------------------------------
+    -- TITLE
+    --------------------------------------------------------
+
+    setColor(C.green)
+
+    love.graphics.printf(
+        "LEVEL COMPLETE!",
+        0,
+        h/2-130,
+        w,
+        "center",
+        0,
+        1.7,
+        1.7
+    )
+
+    --------------------------------------------------------
+    -- LEVEL
+    --------------------------------------------------------
+
+    setColor(C.white)
+
+    love.graphics.printf(
+        "You completed LEVEL "
+        ..game.level,
+        0,
+        h/2-60,
+        w,
+        "center"
+    )
+
+    --------------------------------------------------------
+    -- NEXT BUTTON
+    --------------------------------------------------------
+
+    setupButtons()
+
+    if game.level < game.maxLevels then
+
+        drawButton(
+            buttons.next,
+            "NEXT LEVEL"
+        )
+
+    else
+
+        love.graphics.printf(
+            "ALL 50 LEVELS COMPLETE!",
+            0,
+            h/2+35,
+            w,
+            "center"
+        )
+
+    end
+
+end
+
+------------------------------------------------------------
+-- CONFIRM RESTART DIALOG
+------------------------------------------------------------
+
+local function drawConfirmDialog()
+
+    if not game.confirmRestart then
+        return
+    end
+
+    local w = love.graphics.getWidth()
+    local h = love.graphics.getHeight()
+
+    love.graphics.setColor(0, 0, 0, 0.75)
+
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    panel(
+        w/2-160,
+        h/2-90,
+        320,
+        180
+    )
+
+    setColor(C.white)
+
+    love.graphics.printf(
+        "RESTART GAME?",
+        w/2-140,
+        h/2-60,
+        280,
+        "center"
+    )
+
+    setupButtons()
+
+    drawButton(
+        buttons.confirmYes,
+        "YES"
+    )
+
+    drawButton(
+        buttons.confirmNo,
+        "NO"
+    )
+
+end
+
+------------------------------------------------------------
+-- DRAW
+------------------------------------------------------------
+
+function love.draw()
+
+    --------------------------------------------------------
+    -- WORLD
+    --------------------------------------------------------
+
+    love.graphics.push()
+
+    love.graphics.translate(
+        -camera.x,
+        -camera.y
+    )
+
+    drawGround()
+
+    drawWalls()
+
+    drawParking()
+
+    drawParkedCars()
+
+    drawObstacles()
+
+    drawCar()
+
+    love.graphics.pop()
+
+    --------------------------------------------------------
+    -- UI
+    --------------------------------------------------------
+
+    drawUI()
+
+    if not game.finished and
+       not game.crashed then
+
+        drawControls()
+
+    end
+
+    drawMessage()
+
+    drawCrash()
+
+    drawComplete()
+
+    drawConfirmDialog()
+
+end
+
+------------------------------------------------------------
+-- START
+------------------------------------------------------------
+
+loadGame()
+
+setupLevel()
+
+resetCar()
+
+message(
+    "LEVEL "
+    ..game.level
+    ..": PARK THE CAR!"
+)
