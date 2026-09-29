@@ -2,6 +2,13 @@ name: Build Crazy Elevator Web
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "games/crazy-elevator/**"
+      - ".github/workflows/web.yml"
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -11,13 +18,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build LÖVE package
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install love.js
+        run: npm install -g love.js
+
+      - name: Create LÖVE package
         run: |
           cd games/crazy-elevator
           zip -r CrazyElevator.love main.lua
 
-      - name: Upload LÖVE package
-        uses: actions/upload-artifact@v4
-        with:
-          name: Crazy-Elevator-Love
-          path: games/crazy-elevator/CrazyElevator.love
+      - name: Build Web version
+        run: |
+          love.js games/crazy-elevator/CrazyElevator.love games/crazy-elevator-web -c -t "Crazy Elevator"
+
+      - name: Publish Web build
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add games/crazy-elevator-web
+          git diff --cached --quiet || git commit -m "Update Crazy Elevator web build"
+          git push
