@@ -2,10 +2,6 @@ name: Build Crazy Elevator Web
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "games/crazy-elevator/**"
-      - ".github/workflows/web.yml"
 
 jobs:
   build:
@@ -15,25 +11,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install love.js
-        run: npm install -g love.js
-
-      - name: Create LÖVE package
+      - name: Build LÖVE package
         run: |
           cd games/crazy-elevator
           zip -r CrazyElevator.love main.lua
 
-      - name: Build Web version
-        run: |
-          love.js games/crazy-elevator/CrazyElevator.love web-build -c -t "Crazy Elevator"
-
-      - name: Upload Web build
+      - name: Upload LÖVE package
         uses: actions/upload-artifact@v4
         with:
-          name: Crazy-Elevator-Web
-          path: web-build
+          name: Crazy-Elevator-Love
+          path: games/crazy-elevator/CrazyElevator.love
