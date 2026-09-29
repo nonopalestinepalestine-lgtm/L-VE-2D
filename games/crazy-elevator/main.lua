@@ -733,6 +733,11 @@ function love.load()
     floor5Active = false
     floor5Timer = 0
 
+    floor6Active = false
+    floor6Timer = 0
+    floor6Started = false
+    elevatorRotation = 0
+
     for color, value in pairs(wiresConnected) do
         wiresConnected[color] = false
     end
@@ -1199,15 +1204,37 @@ if floor6Active then
     floor6Timer =
         floor6Timer + dt
 
-    elevatorRotation =
-        math.pi
+    -- دوران المصعد بالكامل 180 درجة خلال 2.5 ثانية
+    local rotationDuration = 2.5
 
+    if floor6Timer < rotationDuration then
+
+        local progress =
+            floor6Timer / rotationDuration
+
+        -- SmoothStep
+        progress =
+            progress * progress
+            * (3 - 2 * progress)
+
+        elevatorRotation =
+            math.pi * progress
+
+    else
+
+        elevatorRotation =
+            math.pi
+
+    end
+
+    -- بعد انتهاء الحدث يبقى المصعد مقلوباً
     if floor6Timer >= FLOOR6_DURATION then
 
         floor6Active = false
         floor6Timer = 0
 
-        elevatorRotation = 0
+        elevatorRotation =
+            math.pi
 
     end
 
@@ -1373,6 +1400,32 @@ function love.draw()
     -- =====================================
     -- ELEVATOR FRAME
     -- =====================================
+    -- تدوير المصعد كله
+    love.graphics.push()
+
+    if floor6Started then
+
+        love.graphics.translate(
+            BASE_W / 2,
+            BASE_H / 2
+        )
+
+        love.graphics.rotate(
+            elevatorRotation
+        )
+
+        love.graphics.translate(
+            -BASE_W / 2,
+            -BASE_H / 2
+        )
+
+    end
+
+    love.graphics.translate(
+        shakeAmount,
+        0
+    )
+
 
     love.graphics.setColor(
         0.05,
@@ -1415,27 +1468,6 @@ function love.draw()
         0
     )
 
-    -- =====================================
-    -- FLOOR 6 FLIP
-    -- =====================================
-
-    if floor6Active then
-
-        love.graphics.translate(
-            BASE_W / 2,
-            BASE_H / 2
-        )
-
-        love.graphics.rotate(
-            elevatorRotation
-        )
-
-        love.graphics.translate(
-            -BASE_W / 2,
-            -BASE_H / 2
-        )
-
-    end
     -- =====================================
     -- YELLOW WALL
     -- =====================================
