@@ -83,7 +83,16 @@ local floor5Timer = 0
 
 -- الآن الحدث 20 ثانية
 local FLOOR5_DURATION = 20
+-- =========================================
+-- FLOOR 6 EVENT
+-- =========================================
 
+local floor6Active = false
+local floor6Timer = 0
+local FLOOR6_DURATION = 10
+
+local elevatorRotation = 0
+local floor6Started = false
 -- =========================================
 -- SOUNDS
 -- =========================================
@@ -1181,7 +1190,28 @@ function love.update(dt)
             )
 
     end
+-- =================================
+-- FLOOR 6 EVENT
+-- =================================
 
+if floor6Active then
+
+    floor6Timer =
+        floor6Timer + dt
+
+    elevatorRotation =
+        math.pi
+
+    if floor6Timer >= FLOOR6_DURATION then
+
+        floor6Active = false
+        floor6Timer = 0
+
+        elevatorRotation = 0
+
+    end
+
+end
     -- =====================================
     -- MOVEMENT
     -- =====================================
@@ -1268,8 +1298,21 @@ function love.update(dt)
                 startFloor5Event()
 
             end
+           -- =================================
+           -- FLOOR 6
+           -- =================================
 
-        end
+           if floor == 6
+           and not floor6Started then
+
+               floor6Started = true
+
+  
+              floor6Active = true
+              floor6Timer = 0
+
+          end
+       end
 
     else
 
@@ -1372,6 +1415,27 @@ function love.draw()
         0
     )
 
+    -- =====================================
+    -- FLOOR 6 FLIP
+    -- =====================================
+
+    if floor6Active then
+
+        love.graphics.translate(
+            BASE_W / 2,
+            BASE_H / 2
+        )
+
+        love.graphics.rotate(
+            elevatorRotation
+        )
+
+        love.graphics.translate(
+            -BASE_W / 2,
+            -BASE_H / 2
+        )
+
+    end
     -- =====================================
     -- YELLOW WALL
     -- =====================================
@@ -2903,6 +2967,15 @@ function love.mousepressed(
     end
 
     -- =====================================
+    -- FLOOR 6 EVENT
+    -- =====================================
+
+    if floor6Active then
+        return
+    end
+  
+  
+    -- =====================================
     -- UP
     -- =====================================
 
@@ -2916,7 +2989,7 @@ function love.mousepressed(
         end
 
         -- الآن نسمح بالطابق السادس
-        if floor >= 6 then
+        if floor >= 10 then
             return
         end
 
